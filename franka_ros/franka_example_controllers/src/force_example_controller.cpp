@@ -85,13 +85,8 @@ bool ForceExampleController::loadTrajectory(const std::string& file_path) {
 
 bool ForceExampleController::init(hardware_interface::RobotHW* robot_hw,
                                   ros::NodeHandle& node_handle) {
-  ROS_INFO("ForceExampleController: init() function has been called!");  // 添加日志
+  ROS_INFO("ForceExampleController: init() function has been called!"); 
 
-  // // 初始化轨迹发布器，话题名称可根据需要调整
-  // path_pub_ = node_handle.advertise<nav_msgs::Path>("end_effector_path", 10);
-
-  // // 初始化轨迹消息的 header
-  // path_msg_.header.frame_id = "panda_link0";  // 请确保与机器人实际坐标系一致
 
   std::vector<std::string> joint_names;
   std::string arm_id;
@@ -167,17 +162,15 @@ bool ForceExampleController::init(hardware_interface::RobotHW* robot_hw,
         return false;
     }
 
-    // create subscribe
-    // subscriber_ = node_handle.subscribe(topic_name_, 10, &ForceExampleController::messageCallback, this);
 
-  // 从参数服务器获取力矩话题名称
+  // 从参数服务器获取力矩话题名称 (用不到)
   std::string torque_topic;
   if (!node_handle.getParam("torque_topic", torque_topic)) {
     ROS_WARN("ForceExampleController: No torque_topic specified. Using default '/external_torque'");
     torque_topic = "/external_torque";
   }
 
-  // 创建订阅者，用于接收外部力矩指令
+  // 创建订阅者，用于接收外部力矩指令 (用不到)
   torque_subscriber_ = node_handle.subscribe(torque_topic, 10, &ForceExampleController::torqueCallback, this);
 
   // 初始化 user_torque_command_ 为 0
@@ -231,29 +224,7 @@ bool ForceExampleController::init(hardware_interface::RobotHW* robot_hw,
 
   debug_pub_ = node_handle.advertise<std_msgs::Float64MultiArray>("/debug_tau", 10);
 
-  // -----------【新增】读取障碍物及 HOCBF 参数 -----------
-  // 从参数服务器读取障碍物中心 (3个数值) 和障碍半径
-  // std::vector<double> obstacle_center_vec;
-  // if (!node_handle.getParam("obstacle_center", obstacle_center_vec) || obstacle_center_vec.size() != 3) {
-  //   ROS_ERROR("ForceExampleController: Invalid or no obstacle_center provided!");
-  //   return false;
-  // }
-  // obstacle_center_ = Eigen::Vector3d(obstacle_center_vec[0], obstacle_center_vec[1], obstacle_center_vec[2]);
-
-  // if (!node_handle.getParam("obstacle_radius", obstacle_radius_)) {
-  //   ROS_ERROR("ForceExampleController: Could not read parameter obstacle_radius");
-  //   return false;
-  // }
-  // // 设置触发 HOCBF 的距离阈值（例如 5 倍障碍半径）
-  // trigger_distance_ = 5.0 * obstacle_radius_;
-
-  // // 设置 HOCBF 反馈参数 α₁ 和 α₂（可根据需要调整）
-  // if (!node_handle.getParam("hocbf_alpha1", hocbf_alpha1_))
-  //   hocbf_alpha1_ = 5.0;
-  // if (!node_handle.getParam("hocbf_alpha2", hocbf_alpha2_))
-  //   hocbf_alpha2_ = 5.0;
-
-
+ 
   obstacle_center_ << 0.53, 0, 0.2;
   obstacle_radius_ = 0.03;
   hocbf_alpha1_ = 5.0;//10 see lambada // best 5
@@ -275,7 +246,7 @@ void ForceExampleController::messageCallback(const std_msgs::String::ConstPtr& m
 }
 
 void ForceExampleController::torqueCallback(const std_msgs::Float64MultiArray::ConstPtr& msg) {
-  // ensure length 7
+  // 用不到
   if (msg->data.size() != 7) {
     ROS_ERROR_STREAM("ForceExampleController: Received torque array of invalid size: " << msg->data.size());
     return;
@@ -289,31 +260,15 @@ void ForceExampleController::torqueCallback(const std_msgs::Float64MultiArray::C
   //                 << user_torque_command_.transpose());
 }
 
-// void ForceExampleController::gpCompensationCallback(const std_msgs::Float64MultiArray::ConstPtr& msg) {
-//   if (msg->data.size() != 7) {
-//     ROS_ERROR("ForceExampleController: Received gp_compensation of invalid size: %lu", msg->data.size());
-//     return;
-//   }
-//   for (size_t i = 0; i < 7; ++i) {
-//     gp_compensation_(i) = msg->data[i];
-//   }
-// // 第8个值为误差界限 eta，赋值给 eta_2_
-//     eta_2_ = msg->data[7];
-
-// }
 
 void ForceExampleController::gpCompensationCallback(const std_msgs::Float64MultiArray::ConstPtr& msg) {
 if (msg->data.size() != 8) {
   ROS_ERROR("ForceExampleController: Received gp_compensation of invalid size: %lu", msg->data.size());
   return;
 }
-//   for (size_t i = 0; i < 7; ++i) {
-//     gp_compensation_(i) = msg->data[i];
-//   }
-// // 第8个值为误差界限 eta，赋值给 eta_2_
-//     eta_ = msg->data[7];
 
 
+// 7维预测+第8个值为error bound eta
 for (size_t i = 0; i < 8; ++i) {
   pending_gp_data_[i] = msg->data[i];
 
@@ -321,7 +276,6 @@ for (size_t i = 0; i < 8; ++i) {
 }
 // has_pending_gp_ = true;
 }
-
 
 
 
@@ -536,126 +490,10 @@ tau_cmd.setZero();
 ROS_INFO_THROTTLE(1.0, "Trajectory finished, holding current position.");
 }
 
-// ====== 1. 提取末端位姿和雅可比 ======
-// // 从 robot_state 中获取末端变换矩阵，并提取末端位置 x_ee (3x1)
-// Eigen::Map<const Eigen::Matrix<double, 4, 4>> transform(robot_state.O_T_EE.data());
-// Eigen::Vector3d x_ee = transform.block<3,1>(0,3);
-
-// // 从 Jacobian 中提取位置部分 J_pos (3x7)
-// Eigen::Matrix<double, 3, 7> J_pos = jacobian.topRows(3);
-
-// // 估计 Jdot (3x7)，采用有限差分法
-// Eigen::Matrix<double, 3, 7> Jdot;
-// if (has_prev_jacobian_) {
-//     // 利用当前周期时长 period.toSec() 计算 Jdot
-//     Jdot = (J_pos - J_pos_prev_) / period.toSec();
-// } else {
-//     Jdot.setZero();
-//     has_prev_jacobian_ = true;
-// }
-// // 更新上一时刻的 J_pos
-//   J_pos_prev_ = J_pos;
-
-// ====== 2. 根据 PD 和动力学补偿计算 τₙₒᵣₘ ======
-// 此处假设你已经按照下面流程计算了 τₙₒᵣₘ：
-// （a）利用 trajectory_、有限差分计算期望速度 dq_des 和加速度 ddq_des
-// （b）计算跟踪误差 e = q_des - q, edot = dq_des - dq
-// （c）计算 qddotNorm = ddq_des + Kp_pd_ ⊙ e + Kd_pd_ ⊙ edot   (⊙ 表示元素相乘)
-// （d）计算 b_dyn = C + G
-// （e）最后 τₙₒᵣₘ = M * qddotNorm + b_dyn
-// 此处直接使用前面已计算得到的 tau_norm 变量
-
-// // ====== 3. HOCBF 与 QP 部分 ======
-// if (CBF_switch_) {
-//     // 3.1 末端相关变量：令 p1 = x_ee；末端速度 pdot1 = J_pos * dq
-//     Eigen::Vector3d p1 = x_ee;
-//     Eigen::Vector3d pdot1 = J_pos * dq;
-    
-//     // 3.2 计算安全函数 h1 和 h0
-//     // h1 = ||p1 - obstacle_center_||² - (obstacle_radius_)²
-//     double h1_val = (p1 - obstacle_center_).squaredNorm() - obstacle_radius_ * obstacle_radius_;
-//     // h0 = ||p1 - obstacle_center_||² - (5 * obstacle_radius_)²
-//     double h0_val = (p1 - obstacle_center_).squaredNorm() - std::pow(5.0 * obstacle_radius_, 2);
-    
-//     // 3.3 定义 C1 = (p1 - obstacle_center_)ᵀ
-//     Eigen::RowVector3d C1 = (p1 - obstacle_center_).transpose();
-    
-//     // 3.4 计算 φ1 = 2 * C1 * pdot1 + hocbf_alpha1_ * h1
-//     double phi1 = 2.0 * (C1 * pdot1)(0) + hocbf_alpha1_ * h1_val;
-    
-//     // 3.5 如果 h0 <= 0 则启用 QP 修正控制输入
-//     if (h0_val <= 0) {
-//         // 计算 D1 = ||pdot1||² + ((hocbf_alpha1_ + hocbf_alpha2_) / 2)*φ1 - (hocbf_alpha1_² / 2)*h1
-//         double D1 = pdot1.squaredNorm() + ((hocbf_alpha1_ + hocbf_alpha2_) / 2.0) * phi1
-//                     - (hocbf_alpha1_ * hocbf_alpha1_ / 2.0) * h1_val;
-                    
-//         // 3.6 定义 A1 和 B1：A1 = J_pos，B1 = Jdot * dq
-//         Eigen::Matrix<double, 3, 7> A1 = J_pos;
-//         Eigen::Vector3d B1 = Jdot * dq;
-        
-//         // 3.7 计算当前质量矩阵及其逆
-//         Eigen::Matrix<double, 7, 7> M_current = M;  // M 已由模型句柄获取
-//         Eigen::Matrix<double, 7, 7> M_inv = M_current.ldlt().solve(Eigen::Matrix<double, 7, 7>::Identity());
-        
-//         // 3.8 QP 约束构造
-//         // a_tau = - C1 * (A1 * M_inv)  (1×7 行向量)
-//         Eigen::RowVectorXd a_tau = - C1 * (A1 * M_inv);
-//         // b_tau = C1 * B1 + D1 - C1 * (A1 * M_inv) * b_dyn
-//         double b_tau = (C1 * B1)(0) + D1 - (C1 * (A1 * M_inv) * b_dyn)(0);
-        
-//         // 3.9 构造 QP 问题：目标为使 τ 接近 τₙₒᵣₘ
-//         // 目标函数：min ½*(τ - tau_norm)ᵀ*2I*(τ - tau_norm)
-//         // 对应 H_qp = 2I, g_qp = -2*tau_norm
-//         const int n = 7;
-//         Eigen::Matrix<double, 7, 7> H_qp = 2.0 * Eigen::Matrix<double, 7, 7>::Identity();
-//         // Eigen::Matrix<double, 7, 1> g_qp = -2.0 * tau_pd;
-//         Eigen::Matrix<double, 7, 1> g_qp = -2.0 * tau_norm;
-//         // QP 不等式约束： a_tau * τ <= b_tau
-//         // qpOASES 需要 lbA <= a_tau*τ <= ubA，这里设 lbA = b_tau，ubA = 一个足够大的正数
-//         Eigen::Matrix<double, 1, 1> lbA;
-//         Eigen::Matrix<double, 1, 1> ubA;
-//         // lbA(0, 0) = b_tau;
-//         // ubA(0, 0) = 1e10;
-//         lbA(0, 0) = -1e10;
-//         ubA(0, 0) = b_tau;
-        
-//         // 变量边界（宽松）
-//         Eigen::Matrix<double, 7, 1> lb = -1e10 * Eigen::Matrix<double, 7, 1>::Ones();
-//         Eigen::Matrix<double, 7, 1> ub = 1e10 * Eigen::Matrix<double, 7, 1>::Ones();
-        
-//         // 3.10 使用 qpOASES 求解 QP 问题
-//         QProblem qp(n, 1);
-//         Options options;
-//         options.printLevel = PL_LOW;
-//         qp.setOptions(options);
-//         int nWSR = 50;
-//         returnValue qp_result = qp.init(H_qp.data(), g_qp.data(), a_tau.data(),
-//                                         lb.data(), ub.data(), lbA.data(), ubA.data(), nWSR);
-//         if (qp_result == SUCCESSFUL_RETURN) {
-//             Eigen::Matrix<double, 7, 1> tau_opt;
-//             qp.getPrimalSolution(tau_opt.data());
-//             // 用 QP 得到的 τ 更新控制命令
-//             tau_cmd = tau_opt;
-//         } else {
-//             ROS_WARN_STREAM("QP 求解出错，错误代码: " << qp_result);
-//         // 若 QP 求解失败，可选择直接使用 tau_norm
-//         tau_cmd = tau_norm;
-//         // tau_cmd = tau_pd;
-//       }
-//   } else {
-//       // 若 h0_val > 0，则直接使用 tau_norm
-//       tau_cmd = tau_norm;
-//       // tau_cmd = tau_pd;
-//   }
-// } else {
-//   // 当 CBF_switch_ 为 false 时，直接使用 tau_norm
-//   tau_cmd = tau_norm;
-//   // tau_cmd = tau_pd;
-// }
-// // ====== HOCBF 与 QP 部分结束 ======
 
 
-  // -------------------【HOCBF 功能集成】-------------------
+
+  // -------------------【HOCBF】-------------------
   // 1. 获取末端位姿：利用机器人状态中齐次变换 O_T_EE（
   Eigen::Map<const Eigen::Matrix<double, 4, 4>> transform(robot_state.O_T_EE.data());
   // 提取末端位置 x (3×1)
@@ -853,54 +691,6 @@ double term_qp      = grad_norm_sq / epsilon_qp;
 
  // 8. 计算约束矩阵 A_constraint = - (x_ee-obstacle_center)^T * J_pos * M_inv (1x7 行向量)
  Eigen::RowVectorXd A_constraint = - 1.0 * (x_ee - obstacle_center_).transpose() * J_pos * M_inv;
-
-// 计算 h₁ 的二阶导数 h1_ddot
-// h1_ddot = 2*dqᵀ*(J_posᵀ*J_pos)*dq + 2*(x - x_obs)ᵀ*(Jdot*dq + J_pos*ddq)
-// 由于 ddq = M⁻¹*(tau - C - G)，故有：
-//
-// h1_ddot = 2*dqᵀ*(J_posᵀ*J_pos)*dq
-//         + 2*(x - x_obs)ᵀ*Jdot*dq
-//         + 2*(x - x_obs)ᵀ*J_pos*M⁻¹*(tau - C - G)
- 
-// 将 tau 部分与其他部分分离：令
-//    A = 2*(x - x_obs)ᵀ*J_pos*M⁻¹  (尺寸 1×7)
-//    f_other = 2*dqᵀ*(J_posᵀ*J_pos)*dq + 2*(x - x_obs)ᵀ*(Jdot*dq)
-//              - 2*(x - x_obs)ᵀ*J_pos*M⁻¹*(C+G)
-// double f_other = 2.0 * (dq.transpose() * (J_pos.transpose() * J_pos) * dq)(0, 0)
-//                  + 2.0 * (x_ee - obstacle_center_).transpose() * (Jdot * dq)
-//                  - 2.0 * (x_ee - obstacle_center_).transpose() * J_pos * M_inv * (C + G);
-//                 // - 2.0 * (x_ee - obstacle_center_).transpose() * J_pos * M_inv * (C);
-
-// // 定义 A，使得 h1_ddot = A*tau + f_other
-// Eigen::RowVectorXd A = 2.0 * (x_ee - obstacle_center_).transpose() * J_pos * M_inv;
-
-// 按照 HOCBF 正确的二阶形式，我们先构造辅助变量
-// h₂ = h1_dot + α₁*h₁
-// double h2 = h1_dot + hocbf_alpha1_ * h1;
-
-// 再构造 h₃ = ḣ₂ + α₂*h₂
-// 展开有： h₃ = h1_ddot + (α₁+α₂)*h1_dot + α₁*α₂*h₁
-// 同时注意 h1_ddot = A*tau + f_other，因此：
-//
-// A*tau + [ f_other + (α₁+α₂)*h1_dot + α₁*α₂*h₁ ] ≥ 0
-// 即，对控制输入 τ 的约束为：
-//      A * τ ≥ -[ f_other + (α₁+α₂)*h1_dot + α₁*α₂*h₁ ]
-// double h_constraint = f_other + (hocbf_alpha1_ + hocbf_alpha2_) * h1_dot + hocbf_alpha1_ * hocbf_alpha2_ * h1;
-// double b_constraint = -h_constraint;
-
-// double trigger_threshold = rho * alpha_star2 * h2
-// + epsilon_phi * (eta_underline * eta_underline);
-// // b 条件： ε(ψ₁) * η̄² ≥ trigger_threshold
-// bool b = (epsilon_phi * (eta_2_ * eta_2_) >= trigger_threshold);
-// double etax_term = epsilon_phi * (eta_2_ * eta_2_);
-// double rho_term = rho * alpha_star2 * h2;
-// double etaunder_term = epsilon_phi * (eta_underline * eta_underline);
-
-// ROS_INFO_STREAM("etax_term  " << etax_term  << ", rho_term  " << rho_term << ", etaunder_term  " << etaunder_term);
-// ROS_INFO_STREAM("rho_term  " << rho_term  << " times");
-// ROS_INFO_STREAM("etaunder_term  " << etaunder_term << " times");
-
-
 
 
 if ((ros::Time::now() - start_time_) >= ros::Duration(5.0) && !info_printed_) {
