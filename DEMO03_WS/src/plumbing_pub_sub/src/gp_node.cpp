@@ -7,21 +7,13 @@
 
 using namespace Eigen;
 
-/**
- * 本示例：
- *  1. 订阅 /joint_states：用于获取关节状态，构造 x (21维)。
- *  2. 订阅 /debug_tau：用于获取 tau_pd 和 tau_cmd (7+7=14维)。
- *  3. 在两个回调中都只做数据的保存/更新。
- *  4. 当都收到了新数据，就调用 updateGP() 进行一次 addPoint + predict。
- *
- * 注意：你需要确保 /debug_tau 中的数组长度是 14，前7为tau_pd，后7为tau_cmd。
- */
+
 
 class GPNode {
 public:
   GPNode(ros::NodeHandle& nh) : nh_(nh) {
     // 初始化 GP 模型参数
-    int x_dim = 21;  // 7位置 + 7速度 + 7期望加速度
+    int x_dim = 21;  // 7位置 + 7速度 + 7期望加速度 (14维就够了，后7维目前设0)
     int y_dim = 7;   // 输出7维扰动/补偿
     int MaxDataQuantity = 50;
     double SigmaN = 0.01;
